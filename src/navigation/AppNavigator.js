@@ -7,6 +7,9 @@ import DashboardScreen  from '../screens/DashboardScreen';
 import MaterialesScreen from '../screens/MaterialesScreen';
 import PersonalScreen   from '../screens/PersonalScreen';
 import TareasScreen     from '../screens/TareasScreen';
+import PerfilScreen     from '../screens/PerfilScreen';
+import PlanosScreen     from '../screens/PlanosScreen';
+import ObrasScreen      from '../screens/ObrasScreen';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -36,14 +39,14 @@ function HomeTabs() {
         },
         tabBarLabelStyle: { fontSize: 11 },
         headerStyle: {
-          backgroundColor:  colors.bgCard,
+          backgroundColor:   colors.bgCard,
           borderBottomColor: colors.border,
           borderBottomWidth: 1,
           elevation:         0,
           shadowOpacity:     0,
         },
-        headerTintColor:     colors.textPrimary,
-        headerTitleStyle:    { fontWeight: 'bold' },
+        headerTintColor:  colors.textPrimary,
+        headerTitleStyle: { fontWeight: 'bold' },
       })}
     >
       <Tab.Screen name="Dashboard"  component={DashboardScreen}  options={{ title: 'Inicio'     }} />
@@ -56,13 +59,27 @@ function HomeTabs() {
 
 export default function AppNavigator() {
   return (
-    <Stack.Navigator screenOptions={{
-      headerShown: false,
-    }}>
-      <Stack.Screen name="HomeTabs"   component={HomeTabs}        />
-      <Stack.Screen name="Materiales" component={MaterialesScreen} />
-      <Stack.Screen name="Personal"   component={PersonalScreen}   />
-      <Stack.Screen name="Tareas"     component={TareasScreen}     />
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor:   colors.bgCard,
+          borderBottomColor: colors.border,
+          borderBottomWidth: 1,
+          elevation:         0,
+          shadowOpacity:     0,
+        },
+        headerTintColor:  colors.primary,
+        headerTitleStyle: { fontWeight: 'bold', color: colors.textPrimary },
+      }}
+    >
+      <Stack.Screen name="HomeTabs"   component={HomeTabs}          options={{ headerShown: false }} />
+      <Stack.Screen name="Perfil"     component={PerfilScreen}      options={{ title: 'Mi Perfil'  }} />
+      <Stack.Screen name="Planos"     component={PlanosScreen}      options={{ title: 'Planos'     }} />
+      <Stack.Screen name="Obras"      component={ObrasScreen}       options={{ title: 'Mis Obras'  }} />
+      <Stack.Screen name="Materiales" component={MaterialesScreen}  options={{ title: 'Materiales' }} />
+      <Stack.Screen name="Personal"   component={PersonalScreen}    options={{ title: 'Personal'   }} />
+      <Stack.Screen name="Tareas"     component={TareasScreen}      options={{ title: 'Tareas'     }} />
+      <Stack.Screen name="Galeria"    component={PlanosScreen}      options={{ title: 'Galería'    }} />
     </Stack.Navigator>
   );
 }
