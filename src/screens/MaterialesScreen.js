@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
@@ -23,7 +23,6 @@ export default function MaterialesScreen() {
       const q    = query(collection(db, 'materiales'), where('uid', '==', uid));
       const snap = await getDocs(q);
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Ordenar por fecha más reciente
       data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
       setRegistros(data);
     } catch (e) { Alert.alert('Error', e.message); }
@@ -76,7 +75,6 @@ export default function MaterialesScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Info */}
             <View style={s.infoBanner}>
               <Ionicons name="information-circle-outline" size={18} color={colors.info} />
               <Text style={s.infoBannerText}>
@@ -84,7 +82,6 @@ export default function MaterialesScreen() {
               </Text>
             </View>
 
-            {/* Resumen */}
             <View style={s.resumen}>
               <View style={s.resumenItem}>
                 <Text style={s.resumenNum}>{registros.length}</Text>
@@ -155,7 +152,12 @@ export default function MaterialesScreen() {
       {/* Modal agregar registro */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={s.modalOverlay}>
-          <View style={s.modalBox}>
+          <ScrollView
+            style={s.modalBox}
+            contentContainerStyle={{ paddingBottom: 30 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={s.modalHeader}>
               <Text style={s.modalTitulo}>Registrar material</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -192,7 +194,7 @@ export default function MaterialesScreen() {
               onPress={agregarRegistro} disabled={loading}>
               <Text style={s.btnGuardarText}>{loading ? 'Guardando...' : 'Registrar llegada'}</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -200,38 +202,38 @@ export default function MaterialesScreen() {
 }
 
 const s = StyleSheet.create({
-  container:       { flex: 1, backgroundColor: colors.bgPrimary },
-  headerRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  titulo:          { fontSize: 22, fontWeight: 'bold', color: colors.textPrimary },
-  btnAdd:          { backgroundColor: colors.primary, width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center', elevation: 4 },
-  infoBanner:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: colors.info + '22', borderRadius: 8, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.info + '44' },
-  infoBannerText:  { flex: 1, fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
-  resumen:         { flexDirection: 'row', backgroundColor: colors.bgCard, borderRadius: 10, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: colors.border, justifyContent: 'space-around' },
-  resumenItem:     { alignItems: 'center' },
-  resumenNum:      { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary },
-  resumenLabel:    { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
-  divider:         { width: 1, backgroundColor: colors.border },
-  seccionLabel:    { fontSize: 11, color: colors.textMuted, letterSpacing: 1, fontWeight: '600', marginBottom: 12 },
-  card:            { backgroundColor: colors.bgCard, borderRadius: 10, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1, borderColor: colors.border },
-  cardLeft:        { width: 42, height: 42, borderRadius: 10, backgroundColor: colors.primary + '22', borderWidth: 1, borderColor: colors.primary + '55', justifyContent: 'center', alignItems: 'center', marginTop: 2 },
-  materialNombre:  { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-  materialCantidad:{ fontSize: 13, color: colors.primary, fontWeight: '600', marginTop: 2 },
-  infoRow:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  infoText:        { fontSize: 12, color: colors.textSecondary },
-  notas:           { fontSize: 12, color: colors.textMuted, marginTop: 4, fontStyle: 'italic' },
-  fechaRow:        { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  fechaText:       { fontSize: 11, color: colors.textMuted },
-  btnEliminar:     { padding: 4 },
-  vacio:           { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  vacioText:       { fontSize: 16, color: colors.textSecondary, fontWeight: '600' },
-  vacioSub:        { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
-  modalOverlay:    { flex: 1, backgroundColor: '#00000088', justifyContent: 'flex-end' },
-  modalBox:        { backgroundColor: colors.bgCard, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border },
-  modalHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  modalTitulo:     { fontSize: 18, fontWeight: 'bold', color: colors.textPrimary },
-  fechaAuto:       { fontSize: 12, color: colors.textSecondary, marginBottom: 16, fontStyle: 'italic' },
-  label:           { fontSize: 12, color: colors.textSecondary, marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase' },
-  input:           { backgroundColor: colors.bgContainer, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.textPrimary, fontSize: 14, marginBottom: 14 },
-  btnGuardar:      { backgroundColor: colors.primary, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4 },
-  btnGuardarText:  { color: colors.textDark, fontWeight: 'bold', fontSize: 16 },
+  container:        { flex: 1, backgroundColor: colors.bgPrimary },
+  headerRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  titulo:           { fontSize: 22, fontWeight: 'bold', color: colors.textPrimary },
+  btnAdd:           { backgroundColor: colors.primary, width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center', elevation: 4 },
+  infoBanner:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: colors.info + '22', borderRadius: 8, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.info + '44' },
+  infoBannerText:   { flex: 1, fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
+  resumen:          { flexDirection: 'row', backgroundColor: colors.bgCard, borderRadius: 10, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: colors.border, justifyContent: 'space-around' },
+  resumenItem:      { alignItems: 'center' },
+  resumenNum:       { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary },
+  resumenLabel:     { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  divider:          { width: 1, backgroundColor: colors.border },
+  seccionLabel:     { fontSize: 11, color: colors.textMuted, letterSpacing: 1, fontWeight: '600', marginBottom: 12 },
+  card:             { backgroundColor: colors.bgCard, borderRadius: 10, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1, borderColor: colors.border },
+  cardLeft:         { width: 42, height: 42, borderRadius: 10, backgroundColor: colors.primary + '22', borderWidth: 1, borderColor: colors.primary + '55', justifyContent: 'center', alignItems: 'center', marginTop: 2 },
+  materialNombre:   { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
+  materialCantidad: { fontSize: 13, color: colors.primary, fontWeight: '600', marginTop: 2 },
+  infoRow:          { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  infoText:         { fontSize: 12, color: colors.textSecondary },
+  notas:            { fontSize: 12, color: colors.textMuted, marginTop: 4, fontStyle: 'italic' },
+  fechaRow:         { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  fechaText:        { fontSize: 11, color: colors.textMuted },
+  btnEliminar:      { padding: 4 },
+  vacio:            { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  vacioText:        { fontSize: 16, color: colors.textSecondary, fontWeight: '600' },
+  vacioSub:         { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
+  modalOverlay:     { flex: 1, backgroundColor: '#00000088', justifyContent: 'flex-end' },
+  modalBox:         { backgroundColor: colors.bgCard, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, borderWidth: 1, borderColor: colors.border, maxHeight: '90%' },
+  modalHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalTitulo:      { fontSize: 18, fontWeight: 'bold', color: colors.textPrimary },
+  fechaAuto:        { fontSize: 12, color: colors.textSecondary, marginBottom: 16, fontStyle: 'italic' },
+  label:            { fontSize: 12, color: colors.textSecondary, marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase' },
+  input:            { backgroundColor: colors.bgContainer, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.textPrimary, fontSize: 14, marginBottom: 14 },
+  btnGuardar:       { backgroundColor: colors.primary, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4 },
+  btnGuardarText:   { color: colors.textDark, fontWeight: 'bold', fontSize: 16 },
 });
