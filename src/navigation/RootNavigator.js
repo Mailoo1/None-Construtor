@@ -8,17 +8,20 @@ import AuthNavigator from './AuthNavigator';
 import AppNavigator  from './AppNavigator';
 
 export default function RootNavigator() {
-  const [splash,      setSplash]  = useState(true);
-  const [sesionActiva, setSesion] = useState(false);
+  const [splash,       setSplash]  = useState(true);
+  const [sesionActiva, setSesion]  = useState(false);
+  const [cargando,     setCargando] = useState(true);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setSesion(!!user);
+      setCargando(false);
     });
     return unsub;
   }, []);
 
   if (splash) return <SplashScreen onFinish={() => setSplash(false)} />;
+  if (cargando) return null;
 
   return (
     <NavigationContainer>
