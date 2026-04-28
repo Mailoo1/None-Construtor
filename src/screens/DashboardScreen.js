@@ -7,10 +7,10 @@ import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
 
 const modulos = [
-  { label: 'Materiales', icon: 'cube-outline',     color: colors.primary,  screen: 'Materiales' },
-  { label: 'Personal',   icon: 'people-outline',   color: colors.success,  screen: 'Personal'   },
-  { label: 'Tareas',     icon: 'checkbox-outline', color: colors.warning,  screen: 'Tareas'     },
-  { label: 'Planos',     icon: 'map-outline',      color: colors.info,     screen: 'Planos'     },
+  { label: 'Materiales', icon: 'cube-outline',     color: colors.primary, screen: 'Materiales' },
+  { label: 'Personal',   icon: 'people-outline',   color: colors.primary, screen: 'Personal'   },
+  { label: 'Tareas',     icon: 'checkbox-outline', color: colors.primary, screen: 'Tareas'     },
+  { label: 'Planos',     icon: 'map-outline',      color: colors.primary, screen: 'Planos'     },
 ];
 
 export default function DashboardScreen({ navigation }) {
