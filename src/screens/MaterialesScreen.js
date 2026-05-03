@@ -4,6 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
+import {
+  guardarMaterialLocal,
+  obtenerMaterialesLocal,
+  eliminarMaterialLocal,
+} from '../config/database';
 
 export default function MaterialesScreen() {
   const [registros,    setRegistros]    = useState([]);
@@ -14,6 +19,7 @@ export default function MaterialesScreen() {
   const [recibio,      setRecibio]      = useState('');
   const [notas,        setNotas]        = useState('');
   const [loading,      setLoading]      = useState(false);
+  const [sinInternet,  setSinInternet]  = useState(false);
 
   useEffect(() => { cargarRegistros(); }, []);
 
@@ -24,8 +30,27 @@ export default function MaterialesScreen() {
       const snap = await getDocs(q);
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+      data.forEach(m => guardarMaterialLocal(m));
       setRegistros(data);
-    } catch (e) { Alert.alert('Error', e.message); }
+      setSinInternet(false);
+    } catch (e) {
+      console.log('Sin internet, cargando materiales desde SQLite...');
+      const uid   = auth.currentUser?.uid;
+      const local = obtenerMaterialesLocal(uid);
+      setRegistros(local.map(m => ({
+        id:        m.firebase_id,
+        uid:       m.uid,
+        material:  m.material,
+        cantidad:  m.cantidad,
+        proveedor: m.proveedor,
+        recibio:   m.recibio,
+        notas:     m.notas,
+        fechaStr:  m.fecha_str,
+        horaStr:   m.hora_str,
+        fecha:     m.creado_en,
+      })));
+      setSinInternet(true);
+    }
   };
 
   const agregarRegistro = async () => {
@@ -36,11 +61,17 @@ export default function MaterialesScreen() {
     try {
       setLoading(true);
       const uid = auth.currentUser?.uid;
-      await addDoc(collection(db, 'materiales'), {
+      const ref = await addDoc(collection(db, 'materiales'), {
         uid, material, cantidad, proveedor, recibio, notas,
         fecha:    new Date().toISOString(),
         fechaStr: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }),
         horaStr:  new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+      });
+      guardarMaterialLocal({
+        id: ref.id, uid, material, cantidad, proveedor, recibio, notas,
+        fechaStr: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }),
+        horaStr:  new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+        fecha:    new Date().toISOString(),
       });
       setMaterial(''); setCantidad(''); setProveedor('');
       setRecibio(''); setNotas('');
@@ -55,6 +86,7 @@ export default function MaterialesScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
         await deleteDoc(doc(db, 'materiales', id));
+        eliminarMaterialLocal(id);
         cargarRegistros();
       }},
     ]);
@@ -74,6 +106,13 @@ export default function MaterialesScreen() {
                 <Ionicons name="add" size={22} color={colors.textDark} />
               </TouchableOpacity>
             </View>
+
+            {sinInternet && (
+              <View style={s.offlineBanner}>
+                <Ionicons name="cloud-offline-outline" size={16} color={colors.warning} />
+                <Text style={s.offlineText}>Sin conexión — mostrando datos locales</Text>
+              </View>
+            )}
 
             <View style={s.infoBanner}>
               <Ionicons name="information-circle-outline" size={18} color={colors.info} />
@@ -96,7 +135,7 @@ export default function MaterialesScreen() {
               </View>
               <View style={s.divider} />
               <View style={s.resumenItem}>
-                <Text style={[s.resumenNum, { color: colors.success }]}>
+                <Text style={[s.resumenNum, { color: colors.primary }]}>
                   {new Set(registros.map(r => r.proveedor).filter(Boolean)).size}
                 </Text>
                 <Text style={s.resumenLabel}>Proveedores</Text>
@@ -149,7 +188,6 @@ export default function MaterialesScreen() {
         }
       />
 
-      {/* Modal agregar registro */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={s.modalOverlay}>
           <ScrollView
@@ -206,6 +244,8 @@ const s = StyleSheet.create({
   headerRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   titulo:           { fontSize: 22, fontWeight: 'bold', color: colors.textPrimary },
   btnAdd:           { backgroundColor: colors.primary, width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center', elevation: 4 },
+  offlineBanner:    { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.warning + '22', borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: colors.warning + '44' },
+  offlineText:      { fontSize: 12, color: colors.warning, fontWeight: '600' },
   infoBanner:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: colors.info + '22', borderRadius: 8, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.info + '44' },
   infoBannerText:   { flex: 1, fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
   resumen:          { flexDirection: 'row', backgroundColor: colors.bgCard, borderRadius: 10, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: colors.border, justifyContent: 'space-around' },

@@ -4,6 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
+import {
+  guardarTareaLocal,
+  obtenerTareasLocal,
+  actualizarEstadoTareaLocal,
+  eliminarTareaLocal,
+} from '../config/database';
 
 const prioridadColor = { alta: colors.danger, media: colors.warning, baja: colors.info };
 const estadoConfig   = {
@@ -11,7 +17,7 @@ const estadoConfig   = {
   'en proceso': { icon: 'reload-outline',           color: colors.info    },
   'completada': { icon: 'checkmark-circle-outline', color: colors.success },
 };
-const filtros    = ['Todas', 'pendiente', 'en proceso', 'completada'];
+const filtros     = ['Todas', 'pendiente', 'en proceso', 'completada'];
 const prioridades = ['alta', 'media', 'baja'];
 
 export default function TareasScreen() {
@@ -22,6 +28,7 @@ export default function TareasScreen() {
   const [descripcion,  setDescripcion]  = useState('');
   const [prioridad,    setPrioridad]    = useState('media');
   const [loading,      setLoading]      = useState(false);
+  const [sinInternet,  setSinInternet]  = useState(false);
 
   useEffect(() => { cargarTareas(); }, []);
 
@@ -30,8 +37,27 @@ export default function TareasScreen() {
       const uid  = auth.currentUser?.uid;
       const q    = query(collection(db, 'tareas'), where('uid', '==', uid));
       const snap = await getDocs(q);
-      setTareas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (e) { Alert.alert('Error', e.message); }
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Guardar en SQLite
+      data.forEach(t => guardarTareaLocal(t));
+      setTareas(data);
+      setSinInternet(false);
+    } catch (e) {
+      // Sin internet — cargar desde SQLite
+      console.log('Sin internet, cargando desde SQLite...');
+      const uid   = auth.currentUser?.uid;
+      const local = obtenerTareasLocal(uid);
+      setTareas(local.map(t => ({
+        id:          t.firebase_id,
+        uid:         t.uid,
+        titulo:      t.titulo,
+        descripcion: t.descripcion,
+        prioridad:   t.prioridad,
+        estado:      t.estado,
+        creadoEn:    t.creado_en,
+      })));
+      setSinInternet(true);
+    }
   };
 
   const agregarTarea = async () => {
@@ -39,10 +65,15 @@ export default function TareasScreen() {
     try {
       setLoading(true);
       const uid = auth.currentUser?.uid;
-      await addDoc(collection(db, 'tareas'), {
+      const ref = await addDoc(collection(db, 'tareas'), {
         uid, titulo, descripcion, prioridad,
         estado:   'pendiente',
         creadoEn: new Date().toISOString(),
+      });
+      // Guardar en SQLite
+      guardarTareaLocal({
+        id: ref.id, uid, titulo, descripcion, prioridad,
+        estado: 'pendiente', creadoEn: new Date().toISOString(),
       });
       setTitulo(''); setDescripcion(''); setPrioridad('media');
       setModalVisible(false);
@@ -57,6 +88,7 @@ export default function TareasScreen() {
     const nuevo  = orden[(actual + 1) % orden.length];
     try {
       await updateDoc(doc(db, 'tareas', tarea.id), { estado: nuevo });
+      actualizarEstadoTareaLocal(tarea.id, nuevo);
       cargarTareas();
     } catch (e) { Alert.alert('Error', e.message); }
   };
@@ -66,6 +98,7 @@ export default function TareasScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
         await deleteDoc(doc(db, 'tareas', id));
+        eliminarTareaLocal(id);
         cargarTareas();
       }},
     ]);
@@ -94,20 +127,28 @@ export default function TareasScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Banner sin internet */}
+            {sinInternet && (
+              <View style={s.offlineBanner}>
+                <Ionicons name="cloud-offline-outline" size={16} color={colors.warning} />
+                <Text style={s.offlineText}>Sin conexión — mostrando datos locales</Text>
+              </View>
+            )}
+
             {/* Resumen */}
             <View style={s.resumen}>
               <View style={s.resumenItem}>
-                <Text style={[s.resumenNum, { color: colors.warning }]}>{pendientes}</Text>
+                <Text style={[s.resumenNum, { color: colors.primary }]}>{pendientes}</Text>
                 <Text style={s.resumenLabel}>Pendientes</Text>
               </View>
               <View style={s.divider} />
               <View style={s.resumenItem}>
-                <Text style={[s.resumenNum, { color: colors.info }]}>{enProceso}</Text>
+                <Text style={[s.resumenNum, { color: colors.primary }]}>{enProceso}</Text>
                 <Text style={s.resumenLabel}>En proceso</Text>
               </View>
               <View style={s.divider} />
               <View style={s.resumenItem}>
-                <Text style={[s.resumenNum, { color: colors.success }]}>{completadas}</Text>
+                <Text style={[s.resumenNum, { color: colors.primary }]}>{completadas}</Text>
                 <Text style={s.resumenLabel}>Completadas</Text>
               </View>
             </View>
@@ -136,9 +177,7 @@ export default function TareasScreen() {
               <Text style={[s.taskTitulo, item.estado === 'completada' && s.tachado]}>
                 {item.titulo}
               </Text>
-              {item.descripcion ? (
-                <Text style={s.taskDesc}>{item.descripcion}</Text>
-              ) : null}
+              {item.descripcion ? <Text style={s.taskDesc}>{item.descripcion}</Text> : null}
               <Text style={[s.estadoText, { color: estadoConfig[item.estado].color }]}>
                 {item.estado}
               </Text>
@@ -221,6 +260,8 @@ const s = StyleSheet.create({
   headerRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   titulo:           { fontSize: 22, fontWeight: 'bold', color: colors.textPrimary },
   btnAdd:           { backgroundColor: colors.primary, width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center', elevation: 4 },
+  offlineBanner:    { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.warning + '22', borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: colors.warning + '44' },
+  offlineText:      { fontSize: 12, color: colors.warning, fontWeight: '600' },
   resumen:          { flexDirection: 'row', backgroundColor: colors.bgCard, borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: colors.border, justifyContent: 'space-around' },
   resumenItem:      { alignItems: 'center' },
   resumenNum:       { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary },

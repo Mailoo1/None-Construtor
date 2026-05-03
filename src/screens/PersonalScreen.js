@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
+import {
+  guardarPersonalLocal,
+  obtenerPersonalLocal,
+  eliminarPersonalLocal,
+} from '../config/database';
 
 const diasSemana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const estadoAsistencia = {
-  presente:  { color: colors.success, icon: 'checkmark-circle' },
-  ausente:   { color: colors.danger,  icon: 'close-circle'     },
-  temprano:  { color: colors.warning, icon: 'time'             },
-  libre:     { color: colors.border,  icon: 'remove-circle'    },
+  presente: { color: colors.success, icon: 'checkmark-circle' },
+  ausente:  { color: colors.danger,  icon: 'close-circle'     },
+  temprano: { color: colors.warning, icon: 'time'             },
+  libre:    { color: colors.border,  icon: 'remove-circle'    },
 };
 
 export default function PersonalScreen() {
@@ -22,6 +27,7 @@ export default function PersonalScreen() {
   const [cargo,         setCargo]         = useState('');
   const [telefono,      setTelefono]      = useState('');
   const [loading,       setLoading]       = useState(false);
+  const [sinInternet,   setSinInternet]   = useState(false);
 
   useEffect(() => { cargarPersonal(); }, []);
 
@@ -30,8 +36,26 @@ export default function PersonalScreen() {
       const uid  = auth.currentUser?.uid;
       const q    = query(collection(db, 'personal'), where('uid', '==', uid));
       const snap = await getDocs(q);
-      setPersonal(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (e) { Alert.alert('Error', e.message); }
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      data.forEach(p => guardarPersonalLocal(p));
+      setPersonal(data);
+      setSinInternet(false);
+    } catch (e) {
+      console.log('Sin internet, cargando personal desde SQLite...');
+      const uid   = auth.currentUser?.uid;
+      const local = obtenerPersonalLocal(uid);
+      setPersonal(local.map(p => ({
+        id:       p.firebase_id,
+        uid:      p.uid,
+        nombre:   p.nombre,
+        cargo:    p.cargo,
+        telefono: p.telefono,
+        estado:   p.estado,
+        creadoEn: p.creado_en,
+        asistencia: { Lun: 'libre', Mar: 'libre', Mié: 'libre', Jue: 'libre', Vie: 'libre', Sáb: 'libre', Dom: 'libre' },
+      })));
+      setSinInternet(true);
+    }
   };
 
   const agregarTrabajador = async () => {
@@ -39,11 +63,15 @@ export default function PersonalScreen() {
     try {
       setLoading(true);
       const uid = auth.currentUser?.uid;
-      await addDoc(collection(db, 'personal'), {
+      const ref = await addDoc(collection(db, 'personal'), {
         uid, nombre, cargo, telefono,
         estado:     'activo',
         asistencia: { Lun: 'libre', Mar: 'libre', Mié: 'libre', Jue: 'libre', Vie: 'libre', Sáb: 'libre', Dom: 'libre' },
         creadoEn:   new Date().toISOString(),
+      });
+      guardarPersonalLocal({
+        id: ref.id, uid, nombre, cargo, telefono,
+        estado: 'activo', creadoEn: new Date().toISOString(),
       });
       setNombre(''); setCargo(''); setTelefono('');
       setModalVisible(false);
@@ -65,6 +93,7 @@ export default function PersonalScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
         await deleteDoc(doc(db, 'personal', id));
+        eliminarPersonalLocal(id);
         cargarPersonal();
       }},
     ]);
@@ -74,7 +103,6 @@ export default function PersonalScreen() {
     try {
       const asistencia = { ...trabajador.asistencia, [dia]: nuevoEstado };
       await updateDoc(doc(db, 'personal', trabajador.id), { asistencia });
-      // Actualizar local
       setTrabajadorSel(prev => ({ ...prev, asistencia }));
       cargarPersonal();
     } catch (e) { Alert.alert('Error', e.message); }
@@ -104,7 +132,13 @@ export default function PersonalScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Resumen */}
+            {sinInternet && (
+              <View style={s.offlineBanner}>
+                <Ionicons name="cloud-offline-outline" size={16} color={colors.warning} />
+                <Text style={s.offlineText}>Sin conexión — mostrando datos locales</Text>
+              </View>
+            )}
+
             <View style={s.resumen}>
               <View style={s.resumenItem}>
                 <Text style={s.resumenNum}>{personal.length}</Text>
@@ -112,12 +146,12 @@ export default function PersonalScreen() {
               </View>
               <View style={s.divider} />
               <View style={s.resumenItem}>
-                <Text style={[s.resumenNum, { color: colors.success }]}>{activos}</Text>
+                <Text style={[s.resumenNum, { color: colors.primary }]}>{activos}</Text>
                 <Text style={s.resumenLabel}>Activos</Text>
               </View>
               <View style={s.divider} />
               <View style={s.resumenItem}>
-                <Text style={[s.resumenNum, { color: colors.danger }]}>{inactivos}</Text>
+                <Text style={[s.resumenNum, { color: colors.primary }]}>{inactivos}</Text>
                 <Text style={s.resumenLabel}>Inactivos</Text>
               </View>
             </View>
@@ -141,11 +175,9 @@ export default function PersonalScreen() {
               ) : null}
             </View>
             <View style={s.cardActions}>
-              {/* Botón asistencia */}
               <TouchableOpacity style={s.btnAsist} onPress={() => { setTrabajadorSel(item); setAsistModal(true); }}>
                 <Ionicons name="calendar-outline" size={16} color={colors.info} />
               </TouchableOpacity>
-              {/* Toggle activo/inactivo */}
               <TouchableOpacity style={[s.badge, {
                 backgroundColor: item.estado === 'activo' ? colors.success + '22' : colors.danger + '22',
                 borderColor:     item.estado === 'activo' ? colors.success + '55' : colors.danger + '55',
@@ -154,7 +186,6 @@ export default function PersonalScreen() {
                   {item.estado}
                 </Text>
               </TouchableOpacity>
-              {/* Eliminar */}
               <TouchableOpacity onPress={() => eliminarTrabajador(item.id)}>
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />
               </TouchableOpacity>
@@ -216,7 +247,6 @@ export default function PersonalScreen() {
 
             <Text style={s.asistInfo}>Toca el día para cambiar el estado</Text>
 
-            {/* Leyenda */}
             <View style={s.leyenda}>
               {Object.entries(estadoAsistencia).map(([key, val]) => (
                 <View key={key} style={s.leyendaItem}>
@@ -226,13 +256,13 @@ export default function PersonalScreen() {
               ))}
             </View>
 
-            {/* Días */}
             <View style={s.diasGrid}>
               {diasSemana.map(dia => {
                 const estado = trabajadorSel?.asistencia?.[dia] ?? 'libre';
                 const config = estadoAsistencia[estado];
                 return (
-                  <TouchableOpacity key={dia} style={[s.diaBtn, { borderColor: config.color + '88', backgroundColor: config.color + '22' }]}
+                  <TouchableOpacity key={dia}
+                    style={[s.diaBtn, { borderColor: config.color + '88', backgroundColor: config.color + '22' }]}
                     onPress={() => {
                       const nuevo = siguienteEstado(estado);
                       marcarAsistencia(trabajadorSel, dia, nuevo);
@@ -259,6 +289,8 @@ const s = StyleSheet.create({
   headerRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   titulo:        { fontSize: 22, fontWeight: 'bold', color: colors.textPrimary },
   btnAdd:        { backgroundColor: colors.primary, width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center', elevation: 4 },
+  offlineBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.warning + '22', borderRadius: 8, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: colors.warning + '44' },
+  offlineText:   { fontSize: 12, color: colors.warning, fontWeight: '600' },
   resumen:       { flexDirection: 'row', backgroundColor: colors.bgCard, borderRadius: 10, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: colors.border, justifyContent: 'space-around' },
   resumenItem:   { alignItems: 'center' },
   resumenNum:    { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary },
