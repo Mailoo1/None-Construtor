@@ -104,10 +104,18 @@ export default function PerfilScreen({ navigation }) {
   };
 
   const cerrarSesion = () => {
-    Alert.alert('Cerrar sesión', '¿Estás seguro?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Salir', style: 'destructive', onPress: () => signOut(auth) },
-    ]);
+    Alert.alert(
+      '¿Salir de Control Obra?',
+      'Cerrarás tu sesión en este dispositivo. Tus datos y avances están guardados.',
+      [
+        { text: 'Quedarme', style: 'cancel' },
+        {
+          text: 'Sí, cerrar sesión',
+          style: 'destructive',
+          onPress: () => signOut(auth),
+        },
+      ]
+    );
   };
 
   return (

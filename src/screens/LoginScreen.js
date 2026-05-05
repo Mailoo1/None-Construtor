@@ -9,13 +9,36 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading,  setLoading]  = useState(false);
 
+  const getMensajeError = (codigo) => {
+    switch (codigo) {
+      case 'auth/invalid-email':
+        return 'El correo ingresado no tiene un formato válido. Revísalo e intenta de nuevo.';
+      case 'auth/user-not-found':
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+        return 'Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.';
+      case 'auth/too-many-requests':
+        return 'Demasiados intentos fallidos. Tu cuenta fue bloqueada temporalmente por seguridad. Intenta más tarde o restablece tu contraseña.';
+      case 'auth/network-request-failed':
+        return 'Sin conexión a internet. Revisa tu red e intenta de nuevo.';
+      case 'auth/user-disabled':
+        return 'Esta cuenta ha sido desactivada. Contacta al administrador de la obra.';
+      default:
+        return 'No pudimos iniciar sesión. Verifica tus datos o intenta más tarde.';
+    }
+  };
+
   const handleLogin = async () => {
-    if (!email || !password) { Alert.alert('Campos requeridos', 'Completa correo y contraseña.'); return; }
+    if (!email.trim() || !password) {
+      Alert.alert('Faltan datos', 'Ingresa tu correo y contraseña para continuar.');
+      return;
+    }
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (e) {
-      Alert.alert('Error al ingresar', e.message);
+      const mensaje = getMensajeError(e.code);
+      Alert.alert('No pudimos ingresarte', mensaje, [{ text: 'Entendido', style: 'default' }]);
     } finally {
       setLoading(false);
     }
