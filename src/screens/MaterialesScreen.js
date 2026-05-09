@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
+import { subirImagen } from '../config/cloudinary';
 import {
   guardarMaterialLocal,
   obtenerMaterialesLocal,
@@ -20,6 +22,8 @@ export default function MaterialesScreen() {
   const [notas,        setNotas]        = useState('');
   const [loading,      setLoading]      = useState(false);
   const [sinInternet,  setSinInternet]  = useState(false);
+  const [fotoEvidencia, setFotoEvidencia] = useState(null);
+  const [subiendoFoto,  setSubiendoFoto] = useState(false);
 
   useEffect(() => { cargarRegistros(); }, []);
 
@@ -61,8 +65,17 @@ export default function MaterialesScreen() {
     try {
       setLoading(true);
       const uid = auth.currentUser?.uid;
+
+      let fotoUrl = null;
+      if (fotoEvidencia) {
+        setSubiendoFoto(true);
+        fotoUrl = await subirImagen(fotoEvidencia);
+        setSubiendoFoto(false);
+      }
+
       const ref = await addDoc(collection(db, 'materiales'), {
         uid, material, cantidad, proveedor, recibio, notas,
+        fotoUrl,
         fecha:    new Date().toISOString(),
         fechaStr: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }),
         horaStr:  new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
@@ -74,11 +87,25 @@ export default function MaterialesScreen() {
         fecha:    new Date().toISOString(),
       });
       setMaterial(''); setCantidad(''); setProveedor('');
-      setRecibio(''); setNotas('');
+      setRecibio(''); setNotas(''); setFotoEvidencia(null);
       setModalVisible(false);
       cargarRegistros();
     } catch (e) { Alert.alert('Error', e.message); }
-    finally { setLoading(false); }
+    finally { setLoading(false); setSubiendoFoto(false); }
+  };
+
+  const tomarFotoMaterial = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara.'); return; }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    if (!result.canceled) setFotoEvidencia(result.assets[0].uri);
+  };
+
+  const elegirFotoMaterial = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+    if (!result.canceled) setFotoEvidencia(result.assets[0].uri);
   };
 
   const eliminarRegistro = (id) => {
@@ -168,6 +195,9 @@ export default function MaterialesScreen() {
               {item.notas ? (
                 <Text style={s.notas}>{item.notas}</Text>
               ) : null}
+              {item.fotoUrl ? (
+                <Image source={{ uri: item.fotoUrl }} style={s.fotoCard} resizeMode="cover" />
+              ) : null}
               <View style={s.fechaRow}>
                 <Ionicons name="calendar-outline" size={11} color={colors.textMuted} />
                 <Text style={s.fechaText}>{item.fechaStr} · {item.horaStr}</Text>
@@ -228,9 +258,33 @@ export default function MaterialesScreen() {
               placeholderTextColor={colors.textMuted} value={notas} onChangeText={setNotas}
               multiline numberOfLines={3} />
 
+            <Text style={s.label}>Foto del material (evidencia)</Text>
+            {fotoEvidencia ? (
+              <View style={{ marginBottom: 12 }}>
+                <Image source={{ uri: fotoEvidencia }} style={s.fotoPreview} resizeMode="cover" />
+                <TouchableOpacity onPress={() => setFotoEvidencia(null)} style={s.fotoQuitar}>
+                  <Ionicons name="close-circle" size={20} color={colors.danger} />
+                  <Text style={s.fotoQuitarText}>Quitar foto</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={s.fotoBtns}>
+                <TouchableOpacity style={s.fotoBtn} onPress={tomarFotoMaterial}>
+                  <Ionicons name="camera-outline" size={20} color={colors.primary} />
+                  <Text style={s.fotoBtnText}>Cámara</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.fotoBtn} onPress={elegirFotoMaterial}>
+                  <Ionicons name="image-outline" size={20} color={colors.info} />
+                  <Text style={s.fotoBtnText}>Galería</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <TouchableOpacity style={[s.btnGuardar, loading && { opacity: 0.6 }]}
               onPress={agregarRegistro} disabled={loading}>
-              <Text style={s.btnGuardarText}>{loading ? 'Guardando...' : 'Registrar llegada'}</Text>
+              <Text style={s.btnGuardarText}>
+                {subiendoFoto ? 'Subiendo foto...' : loading ? 'Guardando...' : 'Registrar llegada'}
+              </Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -276,4 +330,11 @@ const s = StyleSheet.create({
   input:            { backgroundColor: colors.bgContainer, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.textPrimary, fontSize: 14, marginBottom: 14 },
   btnGuardar:       { backgroundColor: colors.primary, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4 },
   btnGuardarText:   { color: colors.textDark, fontWeight: 'bold', fontSize: 16 },
+  fotoCard:         { width: '100%', height: 140, borderRadius: 8, marginTop: 8 },
+  fotoPreview:      { width: '100%', height: 160, borderRadius: 10, marginBottom: 6 },
+  fotoQuitar:       { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  fotoQuitarText:   { fontSize: 13, color: colors.danger },
+  fotoBtns:         { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  fotoBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.bgContainer, borderRadius: 10, paddingVertical: 12, borderWidth: 1, borderColor: colors.border },
+  fotoBtnText:      { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
 });

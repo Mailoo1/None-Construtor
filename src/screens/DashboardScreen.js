@@ -104,6 +104,21 @@ export default function DashboardScreen({ navigation }) {
           <Text style={s.menuItemText}>Mi perfil</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity style={s.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('Planos'); }}>
+          <Ionicons name="map-outline" size={20} color={colors.primary} />
+          <Text style={s.menuItemText}>Planos</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('Facturacion'); }}>
+          <Ionicons name="receipt-outline" size={20} color={colors.success} />
+          <Text style={s.menuItemText}>Facturación</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('Notas'); }}>
+          <Ionicons name="document-text-outline" size={20} color={colors.warning} />
+          <Text style={s.menuItemText}>Notas</Text>
+        </TouchableOpacity>
+
         <View style={s.menuDivider} />
 
         <TouchableOpacity style={s.menuItem} onPress={() => { setMenuOpen(false); cerrarSesion(); }}>

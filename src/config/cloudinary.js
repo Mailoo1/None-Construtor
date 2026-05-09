@@ -24,3 +24,23 @@ export const subirImagen = async (imagenUri) => {
   if (data.secure_url) return data.secure_url;
   throw new Error('Error al subir imagen');
 };
+
+// ─── Subir PDF ────────────────────────────────────────────────────────────────
+export const subirPDF = async (pdfUri, nombreArchivo = 'documento.pdf') => {
+  const formData = new FormData();
+  formData.append('file', {
+    uri:  pdfUri,
+    type: 'application/pdf',
+    name: nombreArchivo,
+  });
+  formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
+  formData.append('cloud_name',    CLOUDINARY_CONFIG.cloudName);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/raw/upload`,
+    { method: 'POST', body: formData }
+  );
+  const data = await response.json();
+  if (data.secure_url) return data.secure_url;
+  throw new Error('Error al subir PDF: ' + JSON.stringify(data));
+};

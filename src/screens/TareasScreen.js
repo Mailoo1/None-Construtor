@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal, Image, } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
+import * as ImagePicker from 'expo-image-picker';
+import { subirImagen } from '../config/cloudinary';
 import {
   guardarTareaLocal,
   obtenerTareasLocal,
@@ -29,6 +31,8 @@ export default function TareasScreen() {
   const [prioridad,    setPrioridad]    = useState('media');
   const [loading,      setLoading]      = useState(false);
   const [sinInternet,  setSinInternet]  = useState(false);
+  const [modalEvidencia, setModalEvidencia] = useState(false);
+  const [tareaSeleccionada, setTareaSeleccionada] = useState(null);
 
   useEffect(() => { cargarTareas(); }, []);
 
@@ -55,6 +59,7 @@ export default function TareasScreen() {
         prioridad:   t.prioridad,
         estado:      t.estado,
         creadoEn:    t.creado_en,
+        evidencia:   t.evidencia,
       })));
       setSinInternet(true);
     }
@@ -82,16 +87,124 @@ export default function TareasScreen() {
     finally { setLoading(false); }
   };
 
-  const cambiarEstado = async (tarea) => {
-    const orden  = ['pendiente', 'en proceso', 'completada'];
-    const actual = orden.indexOf(tarea.estado);
-    const nuevo  = orden[(actual + 1) % orden.length];
-    try {
-      await updateDoc(doc(db, 'tareas', tarea.id), { estado: nuevo });
-      actualizarEstadoTareaLocal(tarea.id, nuevo);
-      cargarTareas();
-    } catch (e) { Alert.alert('Error', e.message); }
-  };
+ const cambiarEstado = async (tarea) => {
+
+  const orden = ['pendiente', 'en proceso', 'completada'];
+
+  const actual = orden.indexOf(tarea.estado);
+
+  const nuevo = orden[(actual + 1) % orden.length];
+
+  try {
+
+    // Si se va a completar
+    if (nuevo === 'completada') {
+
+      setTareaSeleccionada({
+        ...tarea,
+        nuevoEstado: nuevo,
+      });
+
+      setModalEvidencia(true);
+
+      return;
+    }
+
+    // Cambios normales
+    await updateDoc(doc(db, 'tareas', tarea.id), {
+      estado: nuevo,
+    });
+
+    actualizarEstadoTareaLocal(
+      tarea.id,
+      nuevo,
+      tarea.evidencia || null
+    );
+
+    cargarTareas();
+
+  } catch (e) {
+
+    Alert.alert('Error', e.message);
+  }
+};
+
+const subirEvidencia = async (usarCamara = false) => {
+
+  try {
+
+    let permiso;
+
+    if (usarCamara) {
+
+      permiso = await ImagePicker.requestCameraPermissionsAsync();
+
+    } else {
+
+      permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    }
+
+    if (!permiso.granted) {
+
+      Alert.alert(
+        'Permiso requerido',
+        usarCamara
+          ? 'Debes permitir acceso a la cámara'
+          : 'Debes permitir acceso a la galería'
+      );
+
+      return;
+    }
+
+    let resultado;
+
+    if (usarCamara) {
+
+      resultado = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.7,
+      });
+
+    } else {
+
+      resultado = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+    }
+
+    if (resultado.canceled) return;
+
+    setModalEvidencia(false);
+
+    Alert.alert(
+      'Subiendo evidencia',
+      'Espera un momento...'
+    );
+
+    const imagenUri = resultado.assets[0].uri;
+
+    const evidenciaUrl = await subirImagen(imagenUri);
+
+    await updateDoc(doc(db, 'tareas', tareaSeleccionada.id), {
+      estado: tareaSeleccionada.nuevoEstado,
+      evidencia: evidenciaUrl,
+    });
+
+    actualizarEstadoTareaLocal(
+      tareaSeleccionada.id,
+      tareaSeleccionada.nuevoEstado,
+      evidenciaUrl
+    );
+
+    cargarTareas();
+
+  } catch (e) {
+
+    Alert.alert('Error', e.message);
+  }
+};
 
   const eliminarTarea = (id) => {
     Alert.alert('Eliminar tarea', '¿Estás seguro?', [
@@ -178,6 +291,15 @@ export default function TareasScreen() {
                 {item.titulo}
               </Text>
               {item.descripcion ? <Text style={s.taskDesc}>{item.descripcion}</Text> : null}
+              
+
+{item.evidencia && (
+  <Image
+    source={{ uri: item.evidencia }}
+    style={s.evidenciaImg}
+    resizeMode="cover"
+  />
+)}
               <Text style={[s.estadoText, { color: estadoConfig[item.estado].color }]}>
                 {item.estado}
               </Text>
@@ -251,7 +373,76 @@ export default function TareasScreen() {
           </View>
         </View>
       </Modal>
+      <Modal
+  visible={modalEvidencia}
+  transparent
+  animationType="fade"
+>
+  <View style={s.modalOverlay}>
+
+    <View style={s.evidenciaModal}>
+
+      <View style={s.evidenciaHeader}>
+        <Ionicons
+          name="camera-outline"
+          size={26}
+          color={colors.primary}
+        />
+
+        <Text style={s.evidenciaTitulo}>
+          Subir evidencia
+        </Text>
+      </View>
+
+      <Text style={s.evidenciaTexto}>
+        ¿Cómo deseas agregar la evidencia?
+      </Text>
+
+      <TouchableOpacity
+        style={s.evidenciaBtn}
+        onPress={() => subirEvidencia(false)}
+      >
+        <Ionicons
+          name="images-outline"
+          size={20}
+          color={colors.textPrimary}
+        />
+
+        <Text style={s.evidenciaBtnText}>
+          Elegir de galería
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={s.evidenciaBtn}
+        onPress={() => subirEvidencia(true)}
+      >
+        <Ionicons
+          name="camera-outline"
+          size={20}
+          color={colors.textPrimary}
+        />
+
+        <Text style={s.evidenciaBtnText}>
+          Tomar foto
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={s.cancelarBtn}
+        onPress={() => setModalEvidencia(false)}
+      >
+        <Text style={s.cancelarText}>
+          Cancelar
+        </Text>
+      </TouchableOpacity>
+
     </View>
+
+  </View>
+</Modal>
+    </View>
+    
   );
 }
 
@@ -277,6 +468,14 @@ const s = StyleSheet.create({
   taskTitulo:       { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
   tachado:          { textDecorationLine: 'line-through', color: colors.textMuted },
   taskDesc:         { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+
+evidenciaImg: {
+  width: '100%',
+  height: 180,
+  borderRadius: 10,
+  marginTop: 10,
+},
+
   estadoText:       { fontSize: 12, marginTop: 4, fontWeight: '500' },
   cardRight:        { alignItems: 'flex-end', gap: 8 },
   badge:            { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
@@ -296,4 +495,61 @@ const s = StyleSheet.create({
   prioridadText:    { fontSize: 13, color: colors.textSecondary },
   btnGuardar:       { backgroundColor: colors.primary, borderRadius: 8, padding: 16, alignItems: 'center' },
   btnGuardarText:   { color: colors.textDark, fontWeight: 'bold', fontSize: 16 },
+
+  evidenciaModal: {
+  backgroundColor: colors.bgCard,
+  width: '85%',
+  borderRadius: 20,
+  padding: 22,
+  borderWidth: 1,
+  borderColor: colors.border,
+},
+
+evidenciaHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 10,
+  marginBottom: 10,
+},
+
+evidenciaTitulo: {
+  fontSize: 20,
+  fontWeight: 'bold',
+  color: colors.textPrimary,
+},
+
+evidenciaTexto: {
+  color: colors.textSecondary,
+  marginBottom: 20,
+  fontSize: 14,
+},
+
+evidenciaBtn: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  backgroundColor: colors.bgContainer,
+  padding: 16,
+  borderRadius: 14,
+  marginBottom: 12,
+  borderWidth: 1,
+  borderColor: colors.border,
+},
+
+evidenciaBtnText: {
+  color: colors.textPrimary,
+  fontSize: 15,
+  fontWeight: '600',
+},
+
+cancelarBtn: {
+  marginTop: 10,
+  alignItems: 'center',
+},
+
+cancelarText: {
+  color: colors.danger,
+  fontWeight: '600',
+  fontSize: 15,
+},
 });
