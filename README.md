@@ -98,4 +98,14 @@ La aplicación busca reducir el uso de procesos manuales, mejorar la organizaci�
 ## 👨‍💻 Desarrollado por
 
 Proyecto universitario desarrollado con enfoque en resolver problemas reales del sector de la construcción mediante tecnología móvil.
+![planos](recursos/Seccion_agregar_planos.jpg)
+![seccionpersonal](recursos/Seccion_administrar_personal.jpg)
 ![Pantalla facturacion](recursos/Pantalla_facturacion.jpg)
+![Perfil](recursos/Seccion_perdfil.jpg)
+![Notas](recursos/Seccion_notas.jpg)
+![materiales](recursos/Seccion_materiales.jpg)
+![tareas](recursos/Seccion_agregar_nuevatarea.jpg)
+![Pantalla facturacion](recursos/Pantalla_facturacion.jpg)
+![Pantalla materiales](recursos/Pantalla_materiales.jpg)
+![Pantalla facturacion](recursos/Pantalla_facturacion.jpg)
+![Pantalla tareas](recursos/Pantalla_tareas.jpg)
