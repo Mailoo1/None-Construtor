@@ -98,4 +98,4 @@ La aplicación busca reducir el uso de procesos manuales, mejorar la organizaci�
 ## 👨‍💻 Desarrollado por
 
 Proyecto universitario desarrollado con enfoque en resolver problemas reales del sector de la construcción mediante tecnología móvil.
-![Pantalla facturacion](recursos/Pantalla_facturacion.jpg
+![Pantalla facturacion](recursos/Pantalla_facturacion.jpg)
