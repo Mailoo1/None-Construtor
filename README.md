@@ -78,11 +78,7 @@ npx expo start
 
 ## 📱 Funcionalidades futuras
 
-- Notificaciones en tiempo real
-- Firma digital de reportes
 - Roles de usuario
-- Panel administrativo web
-- Estadísticas y gráficos de avance
 - Modo offline
 
 ---
