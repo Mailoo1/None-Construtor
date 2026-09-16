@@ -5,10 +5,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where, limit } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
 import { subirImagen, subirPDF } from '../config/cloudinary';
+import { logError } from '../utils/logger';
+import { mostrarError } from '../utils/errorHandler';
+
+const LIMITE_PLANOS = 200;
 
 const tipoConfig = {
   PDF: { icon: 'document-text-outline', color: colors.danger },
@@ -27,12 +31,12 @@ export default function PlanosScreen() {
   const cargarPlanos = async () => {
     try {
       const uid  = auth.currentUser?.uid;
-      const q    = query(collection(db, 'planos'), where('uid', '==', uid));
+      const q    = query(collection(db, 'planos'), where('uid', '==', uid), limit(LIMITE_PLANOS));
       const snap = await getDocs(q);
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
       setPlanos(data);
-    } catch (e) { console.log(e); }
+    } catch (e) { logError('Error cargando planos', e); }
   };
 
   const elegirImagen = async () => {
@@ -69,6 +73,7 @@ export default function PlanosScreen() {
   };
 
   const guardarPlano = async () => {
+    if (subiendo) return; // evita doble-tap mientras sube
     if (!nombre.trim()) { Alert.alert('Campo requerido', 'Escribe un nombre para el plano.'); return; }
     if (!archivoSel)    { Alert.alert('Archivo requerido', 'Selecciona una imagen.'); return; }
     try {
@@ -87,7 +92,7 @@ export default function PlanosScreen() {
       setModalVisible(false);
       cargarPlanos();
     } catch (e) {
-      Alert.alert('Error al subir', e.message);
+      mostrarError(e, 'No se pudo subir el plano');
     } finally { setSubiendo(false); }
   };
 
@@ -95,8 +100,12 @@ export default function PlanosScreen() {
     Alert.alert('Eliminar plano', '¿Estás seguro?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        await deleteDoc(doc(db, 'planos', id));
-        cargarPlanos();
+        try {
+          await deleteDoc(doc(db, 'planos', id));
+          cargarPlanos();
+        } catch (e) {
+          mostrarError(e, 'No se pudo eliminar el plano');
+        }
       }},
     ]);
   };

@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { auth, db } from '../config/firebase';
 import { subirImagen } from '../config/cloudinary';
 import { colors } from '../config/theme';
+import { mostrarError } from '../utils/errorHandler';
 
 export default function PerfilScreen({ navigation }) {
   const [usuario,      setUsuario]      = useState(null);
@@ -31,10 +32,11 @@ export default function PerfilScreen({ navigation }) {
         setTelefono(data.telefono ?? '');
         setCargo(data.cargo     ?? '');
       }
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo cargar tu perfil'); }
   };
 
   const guardarPerfil = async () => {
+    if (loading) return; // evita doble-tap
     try {
       setLoading(true);
       const uid = auth.currentUser?.uid;
@@ -42,11 +44,12 @@ export default function PerfilScreen({ navigation }) {
       setUsuario(prev => ({ ...prev, nombre, telefono, cargo }));
       setEditando(false);
       Alert.alert('✅ Guardado', 'Perfil actualizado correctamente.');
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo guardar el perfil'); }
     finally { setLoading(false); }
   };
 
   const seleccionarFoto = async () => {
+    if (subiendoFoto) return; // evita doble-tap mientras sube
     try {
       const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permiso.granted) {
@@ -67,11 +70,12 @@ export default function PerfilScreen({ navigation }) {
         setUsuario(prev => ({ ...prev, fotoPerfil: url }));
         Alert.alert('✅ Foto actualizada', 'Tu foto de perfil fue actualizada.');
       }
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo actualizar la foto'); }
     finally { setSubiendoFoto(false); }
   };
 
   const tomarFoto = async () => {
+    if (subiendoFoto) return; // evita doble-tap mientras sube
     try {
       const permiso = await ImagePicker.requestCameraPermissionsAsync();
       if (!permiso.granted) {
@@ -91,7 +95,7 @@ export default function PerfilScreen({ navigation }) {
         setUsuario(prev => ({ ...prev, fotoPerfil: url }));
         Alert.alert('✅ Foto actualizada', 'Tu foto de perfil fue actualizada.');
       }
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo actualizar la foto'); }
     finally { setSubiendoFoto(false); }
   };
 

@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where, limit } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
+import { mostrarError } from '../utils/errorHandler';
+
+const LIMITE_OBRAS = 100;
 
 export default function ObrasScreen() {
   const [obras,          setObras]          = useState([]);
@@ -18,13 +21,14 @@ export default function ObrasScreen() {
   const cargarObras = async () => {
     try {
       const uid = auth.currentUser?.uid;
-      const q   = query(collection(db, 'obras'), where('uid', '==', uid));
+      const q   = query(collection(db, 'obras'), where('uid', '==', uid), limit(LIMITE_OBRAS));
       const snap = await getDocs(q);
       setObras(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudieron cargar las obras'); }
   };
 
   const agregarObra = async () => {
+    if (loading) return; // evita doble-tap / doble registro
     if (!nombre) { Alert.alert('Campo requerido', 'El nombre es obligatorio.'); return; }
     try {
       setLoading(true);
@@ -42,7 +46,7 @@ export default function ObrasScreen() {
       setUbicacion('');
       setModalVisible(false);
       cargarObras();
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo guardar la obra'); }
     finally { setLoading(false); }
   };
 
@@ -50,8 +54,12 @@ export default function ObrasScreen() {
     Alert.alert('Eliminar obra', '¿Estás seguro?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        await deleteDoc(doc(db, 'obras', id));
-        cargarObras();
+        try {
+          await deleteDoc(doc(db, 'obras', id));
+          cargarObras();
+        } catch (e) {
+          mostrarError(e, 'No se pudo eliminar la obra');
+        }
       }},
     ]);
   };

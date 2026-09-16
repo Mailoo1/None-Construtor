@@ -82,10 +82,6 @@ export default function AppNavigator() {
       <Stack.Screen name="Planos"      component={PlanosScreen}      options={{ title: 'Planos'      }} />
       <Stack.Screen name="Obras"       component={ObrasScreen}       options={{ title: 'Mis Obras'   }} />
       <Stack.Screen name="Galeria"     component={GaleriaScreen}     options={{ title: 'Galería'     }} />
-      <Stack.Screen name="Materiales"  component={MaterialesScreen}  options={{ title: 'Materiales'  }} />
-      <Stack.Screen name="Personal"    component={PersonalScreen}    options={{ title: 'Personal'    }} />
-      <Stack.Screen name="Tareas"      component={TareasScreen}      options={{ title: 'Tareas'      }} />
-      <Stack.Screen name="Facturacion" component={FacturacionScreen} options={{ title: 'Facturación' }} />
       <Stack.Screen name="Notas"       component={NotasScreen}       options={{ title: 'Notas'       }} />
     </Stack.Navigator>
   );

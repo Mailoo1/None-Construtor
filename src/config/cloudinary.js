@@ -1,7 +1,9 @@
+// NOTA: el apiSecret de Cloudinary NUNCA debe ir aquí. Este archivo corre en el
+// dispositivo del usuario y cualquiera puede extraerlo del bundle de la app.
+// Las subidas se hacen con "upload_preset" (sin firmar), que es lo correcto
+// para apps cliente, así que no se necesita apiKey/apiSecret en absoluto.
 export const CLOUDINARY_CONFIG = {
   cloudName:  'druii2qgj',
-  apiKey:     '252296978478384',
-  apiSecret:  'wyKwzrEL7S2eB58GAUSXpWJCi8c',
   uploadPreset: 'control_obra',
 };
 

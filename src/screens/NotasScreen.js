@@ -6,8 +6,17 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../config/theme';
+import { logError } from '../utils/logger';
 
 const STORAGE_KEY = 'control_obra_notas';
+
+// FIX: Date.now() solo tiene resolución de milisegundo. En la práctica
+// era casi imposible chocar creando notas a mano, pero no estaba
+// garantizado (y "casi imposible" ya te dio el susto con las otras
+// pantallas). Esto genera un id único de verdad combinando tiempo +
+// un sufijo aleatorio.
+const generarIdUnico = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 const COLORES_NOTA = [
   colors.primary,
@@ -31,13 +40,16 @@ export default function NotasScreen() {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) setNotas(JSON.parse(raw));
-    } catch (e) { console.log(e); }
+    } catch (e) { logError('Error cargando notas', e); }
   };
 
   const guardarEnStorage = async (nuevasNotas) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nuevasNotas));
-    } catch (e) { console.log(e); }
+    } catch (e) {
+      logError('Error guardando notas', e);
+      Alert.alert('No se pudo guardar', 'Hubo un problema guardando tus notas en el dispositivo.');
+    }
   };
 
   const abrirNueva = () => {
@@ -68,7 +80,7 @@ export default function NotasScreen() {
       );
     } else {
       const nueva = {
-        id:        Date.now().toString(),
+        id:        generarIdUnico(),
         titulo:    titulo.trim(),
         contenido: contenido.trim(),
         color:     colorSel,

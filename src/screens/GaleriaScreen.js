@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Image, ActivityIndicator, Modal, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where, limit } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { subirImagen } from '../config/cloudinary';
 import { colors } from '../config/theme';
+import { mostrarError } from '../utils/errorHandler';
 
 const { width } = Dimensions.get('window');
 const FOTO_SIZE = (width - 48) / 3;
+const LIMITE_FOTOS = 300;
 
 export default function GaleriaScreen() {
   const [fotos,        setFotos]        = useState([]);
@@ -20,15 +22,16 @@ export default function GaleriaScreen() {
   const cargarFotos = async () => {
     try {
       const uid  = auth.currentUser?.uid;
-      const q    = query(collection(db, 'galeria'), where('uid', '==', uid));
+      const q    = query(collection(db, 'galeria'), where('uid', '==', uid), limit(LIMITE_FOTOS));
       const snap = await getDocs(q);
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
       setFotos(data);
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudieron cargar las fotos'); }
   };
 
   const subirFoto = async (uri) => {
+    if (subiendo) return; // evita subir la misma foto dos veces por doble-tap
     try {
       setSubiendo(true);
       const url = await subirImagen(uri);
@@ -40,7 +43,7 @@ export default function GaleriaScreen() {
         horaStr:  new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
       });
       cargarFotos();
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo subir la foto'); }
     finally { setSubiendo(false); }
   };
 
@@ -78,9 +81,13 @@ export default function GaleriaScreen() {
     Alert.alert('Eliminar foto', '¿Estás seguro?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        await deleteDoc(doc(db, 'galeria', id));
-        setFotoSelec(null);
-        cargarFotos();
+        try {
+          await deleteDoc(doc(db, 'galeria', id));
+          setFotoSelec(null);
+          cargarFotos();
+        } catch (e) {
+          mostrarError(e, 'No se pudo eliminar la foto');
+        }
       }},
     ]);
   };

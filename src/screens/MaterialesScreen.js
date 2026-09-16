@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where, limit } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
 import { subirImagen } from '../config/cloudinary';
@@ -11,6 +11,10 @@ import {
   obtenerMaterialesLocal,
   eliminarMaterialLocal,
 } from '../config/database';
+import { logInfo } from '../utils/logger';
+import { mostrarError } from '../utils/errorHandler';
+
+const LIMITE_MATERIALES = 300;
 
 export default function MaterialesScreen() {
   const [registros,    setRegistros]    = useState([]);
@@ -30,7 +34,7 @@ export default function MaterialesScreen() {
   const cargarRegistros = async () => {
     try {
       const uid  = auth.currentUser?.uid;
-      const q    = query(collection(db, 'materiales'), where('uid', '==', uid));
+      const q    = query(collection(db, 'materiales'), where('uid', '==', uid), limit(LIMITE_MATERIALES));
       const snap = await getDocs(q);
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       data.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
@@ -38,7 +42,7 @@ export default function MaterialesScreen() {
       setRegistros(data);
       setSinInternet(false);
     } catch (e) {
-      console.log('Sin internet, cargando materiales desde SQLite...');
+      logInfo('Sin internet, cargando materiales desde SQLite...');
       const uid   = auth.currentUser?.uid;
       const local = obtenerMaterialesLocal(uid);
       setRegistros(local.map(m => ({
@@ -58,6 +62,7 @@ export default function MaterialesScreen() {
   };
 
   const agregarRegistro = async () => {
+    if (loading) return; // evita doble-tap / doble registro
     if (!material || !cantidad) {
       Alert.alert('Campos requeridos', 'Material y cantidad son obligatorios.');
       return;
@@ -90,7 +95,7 @@ export default function MaterialesScreen() {
       setRecibio(''); setNotas(''); setFotoEvidencia(null);
       setModalVisible(false);
       cargarRegistros();
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo guardar el material'); }
     finally { setLoading(false); setSubiendoFoto(false); }
   };
 
@@ -112,9 +117,13 @@ export default function MaterialesScreen() {
     Alert.alert('Eliminar registro', '¿Estás seguro?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        await deleteDoc(doc(db, 'materiales', id));
-        eliminarMaterialLocal(id);
-        cargarRegistros();
+        try {
+          await deleteDoc(doc(db, 'materiales', id));
+          eliminarMaterialLocal(id);
+          cargarRegistros();
+        } catch (e) {
+          mostrarError(e, 'No se pudo eliminar el registro');
+        }
       }},
     ]);
   };

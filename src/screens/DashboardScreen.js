@@ -5,6 +5,7 @@ import { signOut } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
+import { logError } from '../utils/logger';
 
 const modulos = [
   { label: 'Materiales', icon: 'cube-outline',     color: colors.primary, screen: 'Materiales' },
@@ -40,7 +41,7 @@ export default function DashboardScreen({ navigation }) {
       if (!uid) return;
       const snap = await getDoc(doc(db, 'usuarios', uid));
       if (snap.exists()) setUsuario(snap.data());
-    } catch (e) { console.log(e); }
+    } catch (e) { logError('Error cargando usuario', e); }
   };
 
   const cargarObras = async () => {
@@ -51,7 +52,7 @@ export default function DashboardScreen({ navigation }) {
       const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setObras(lista);
       if (lista.length > 0 && !obraActiva) setObraActiva(lista[0]);
-    } catch (e) { console.log(e); }
+    } catch (e) { logError('Error cargando obras', e); }
   };
 
   const cerrarSesion = () => {

@@ -4,7 +4,7 @@ import {
   Alert, TextInput, Modal, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where, limit } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
 import {
@@ -12,6 +12,10 @@ import {
   obtenerPersonalLocal,
   eliminarPersonalLocal,
 } from '../config/database';
+import { logInfo } from '../utils/logger';
+import { mostrarError } from '../utils/errorHandler';
+
+const LIMITE_PERSONAL = 300;
 
 // 7 días × 2 semanas
 const SEMANAS = {
@@ -66,14 +70,14 @@ export default function PersonalScreen() {
   const cargarPersonal = async () => {
     try {
       const uid  = auth.currentUser?.uid;
-      const q    = query(collection(db, 'personal'), where('uid', '==', uid));
+      const q    = query(collection(db, 'personal'), where('uid', '==', uid), limit(LIMITE_PERSONAL));
       const snap = await getDocs(q);
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       data.forEach(p => guardarPersonalLocal(p));
       setPersonal(data);
       setSinInternet(false);
     } catch (e) {
-      console.log('Sin internet, cargando personal desde SQLite...');
+      logInfo('Sin internet, cargando personal desde SQLite...');
       const uid   = auth.currentUser?.uid;
       const local = obtenerPersonalLocal(uid);
       setPersonal(local.map(p => ({
@@ -92,6 +96,7 @@ export default function PersonalScreen() {
   };
 
   const agregarTrabajador = async () => {
+    if (loading) return; // evita doble-tap / doble registro
     if (!nombre || !cargo) {
       Alert.alert('Campos requeridos', 'Nombre y cargo son obligatorios.');
       return;
@@ -99,30 +104,34 @@ export default function PersonalScreen() {
     try {
       setLoading(true);
       const uid = auth.currentUser?.uid;
+      const precioDiaNum = parseFloat(precioDia) || 0;
       const ref = await addDoc(collection(db, 'personal'), {
         uid, nombre, cargo, telefono,
-        precioDia: parseFloat(precioDia) || 0,
+        precioDia:  precioDiaNum,
         estado:     'activo',
         asistencia: asistenciaVacia(),
         creadoEn:   new Date().toISOString(),
       });
+      // FIX: antes no se pasaba precioDia aquí, así que el precio del
+      // día se perdía en la copia local (offline) del trabajador.
       guardarPersonalLocal({
         id: ref.id, uid, nombre, cargo, telefono,
+        precioDia: precioDiaNum,
         estado: 'activo', creadoEn: new Date().toISOString(),
       });
       setNombre(''); setCargo(''); setTelefono(''); setPrecioDia('');
       setModalVisible(false);
       cargarPersonal();
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo guardar el trabajador'); }
     finally { setLoading(false); }
   };
 
   const toggleEstado = async (trabajador) => {
-    const nuevoEstado = trabajador.estado === 'activo' ? 'inactivo' : 'activo';
     try {
+      const nuevoEstado = trabajador.estado === 'activo' ? 'inactivo' : 'activo';
       await updateDoc(doc(db, 'personal', trabajador.id), { estado: nuevoEstado });
       cargarPersonal();
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo actualizar el estado'); }
   };
 
   const abrirEditarPrecio = (trabajador) => {
@@ -132,26 +141,33 @@ export default function PersonalScreen() {
   };
 
   const guardarPrecio = async () => {
+    if (loading) return; // evita doble-tap
     if (!nuevoPrecio || isNaN(parseFloat(nuevoPrecio))) {
       Alert.alert('Valor inválido', 'Ingresa un número válido.');
       return;
     }
     try {
+      setLoading(true);
       await updateDoc(doc(db, 'personal', trabajadorPrecio.id), {
         precioDia: parseFloat(nuevoPrecio),
       });
       setPrecioModal(false);
       cargarPersonal();
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo guardar el precio'); }
+    finally { setLoading(false); }
   };
 
   const eliminarTrabajador = (id) => {
     Alert.alert('Eliminar trabajador', '¿Estás seguro?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        await deleteDoc(doc(db, 'personal', id));
-        eliminarPersonalLocal(id);
-        cargarPersonal();
+        try {
+          await deleteDoc(doc(db, 'personal', id));
+          eliminarPersonalLocal(id);
+          cargarPersonal();
+        } catch (e) {
+          mostrarError(e, 'No se pudo eliminar el trabajador');
+        }
       }},
     ]);
   };
@@ -164,7 +180,7 @@ export default function PersonalScreen() {
       await updateDoc(doc(db, 'personal', trabajador.id), { asistencia: asist });
       setTrabajadorSel(prev => ({ ...prev, asistencia: asist }));
       cargarPersonal();
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo guardar la asistencia'); }
   };
 
   // Días trabajados (presente o temprano) en ambas semanas

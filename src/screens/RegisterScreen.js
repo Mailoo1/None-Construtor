@@ -4,6 +4,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
+import { mostrarError } from '../utils/errorHandler';
 
 export default function RegisterScreen({ navigation }) {
   const [nombre,   setNombre]   = useState('');
@@ -12,20 +13,21 @@ export default function RegisterScreen({ navigation }) {
   const [loading,  setLoading]  = useState(false);
 
   const handleRegister = async () => {
+    if (loading) return; // evita doble-tap / doble cuenta
     if (!nombre || !email || !password) { Alert.alert('Campos requeridos', 'Completa todos los campos.'); return; }
     if (password.length < 6) { Alert.alert('Contraseña débil', 'Mínimo 6 caracteres.'); return; }
     try {
       setLoading(true);
-      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
       await setDoc(doc(db, 'usuarios', user.uid), {
         nombre,
-        email,
+        email: email.trim(),
         fotoPerfil: null,
         creadoEn: new Date().toISOString(),
       });
       Alert.alert('¡Cuenta creada!', 'Bienvenido a Control Obra.');
     } catch (e) {
-      Alert.alert('Error', e.message);
+      mostrarError(e, 'No se pudo crear la cuenta');
     } finally {
       setLoading(false);
     }

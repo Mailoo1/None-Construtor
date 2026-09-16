@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput, Modal, Image, } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where, limit } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,6 +12,14 @@ import {
   actualizarEstadoTareaLocal,
   eliminarTareaLocal,
 } from '../config/database';
+import { logInfo } from '../utils/logger';
+import { mostrarError } from '../utils/errorHandler';
+
+// Tope de lecturas por carga: evita traer miles de documentos de golpe
+// (costo de Firestore) si el proyecto crece mucho. Cuando la lista
+// se acerque a este número, lo ideal es agregar paginación real con
+// startAfter(); por ahora esto evita el peor caso.
+const LIMITE_TAREAS = 300;
 
 const prioridadColor = { alta: colors.danger, media: colors.warning, baja: colors.info };
 const estadoConfig   = {
@@ -33,13 +41,14 @@ export default function TareasScreen() {
   const [sinInternet,  setSinInternet]  = useState(false);
   const [modalEvidencia, setModalEvidencia] = useState(false);
   const [tareaSeleccionada, setTareaSeleccionada] = useState(null);
+  const [subiendoEvidencia, setSubiendoEvidencia] = useState(false);
 
   useEffect(() => { cargarTareas(); }, []);
 
   const cargarTareas = async () => {
     try {
       const uid  = auth.currentUser?.uid;
-      const q    = query(collection(db, 'tareas'), where('uid', '==', uid));
+      const q    = query(collection(db, 'tareas'), where('uid', '==', uid), limit(LIMITE_TAREAS));
       const snap = await getDocs(q);
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       // Guardar en SQLite
@@ -48,7 +57,7 @@ export default function TareasScreen() {
       setSinInternet(false);
     } catch (e) {
       // Sin internet — cargar desde SQLite
-      console.log('Sin internet, cargando desde SQLite...');
+      logInfo('Sin internet, cargando desde SQLite...');
       const uid   = auth.currentUser?.uid;
       const local = obtenerTareasLocal(uid);
       setTareas(local.map(t => ({
@@ -66,6 +75,7 @@ export default function TareasScreen() {
   };
 
   const agregarTarea = async () => {
+    if (loading) return; // evita doble-tap / doble registro
     if (!titulo) { Alert.alert('Campo requerido', 'El título es obligatorio.'); return; }
     try {
       setLoading(true);
@@ -83,7 +93,7 @@ export default function TareasScreen() {
       setTitulo(''); setDescripcion(''); setPrioridad('media');
       setModalVisible(false);
       cargarTareas();
-    } catch (e) { Alert.alert('Error', e.message); }
+    } catch (e) { mostrarError(e, 'No se pudo guardar la tarea'); }
     finally { setLoading(false); }
   };
 
@@ -125,13 +135,16 @@ export default function TareasScreen() {
 
   } catch (e) {
 
-    Alert.alert('Error', e.message);
+    mostrarError(e, 'No se pudo actualizar la tarea');
   }
 };
 
 const subirEvidencia = async (usarCamara = false) => {
 
+  if (subiendoEvidencia) return; // evita doble-tap mientras sube
+
   try {
+    setSubiendoEvidencia(true);
 
     let permiso;
 
@@ -202,7 +215,9 @@ const subirEvidencia = async (usarCamara = false) => {
 
   } catch (e) {
 
-    Alert.alert('Error', e.message);
+    mostrarError(e, 'No se pudo subir la evidencia');
+  } finally {
+    setSubiendoEvidencia(false);
   }
 };
 
@@ -210,9 +225,13 @@ const subirEvidencia = async (usarCamara = false) => {
     Alert.alert('Eliminar tarea', '¿Estás seguro?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        await deleteDoc(doc(db, 'tareas', id));
-        eliminarTareaLocal(id);
-        cargarTareas();
+        try {
+          await deleteDoc(doc(db, 'tareas', id));
+          eliminarTareaLocal(id);
+          cargarTareas();
+        } catch (e) {
+          mostrarError(e, 'No se pudo eliminar la tarea');
+        }
       }},
     ]);
   };

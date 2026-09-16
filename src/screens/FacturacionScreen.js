@@ -7,9 +7,12 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Print  from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { colors } from '../config/theme';
+import { mostrarError } from '../utils/errorHandler';
+
+const LIMITE_PERSONAL_FACTURACION = 300;
 
 const PERIODOS = ['Semana 1', 'Semana 2', 'Quincenal (ambas semanas)'];
 
@@ -151,14 +154,14 @@ export default function FacturacionScreen() {
   const cargarPersonal = async () => {
     try {
       const uid  = auth.currentUser?.uid;
-      const q    = query(collection(db, 'personal'), where('uid', '==', uid));
+      const q    = query(collection(db, 'personal'), where('uid', '==', uid), limit(LIMITE_PERSONAL_FACTURACION));
       const snap = await getDocs(q);
       const data = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(p => p.estado === 'activo');
       setPersonal(data);
     } catch (e) {
-      Alert.alert('Error', 'No se pudo cargar el personal.');
+      mostrarError(e, 'No se pudo cargar el personal');
     }
   };
 
@@ -169,6 +172,7 @@ export default function FacturacionScreen() {
 
   // ── Generar y compartir PDF ─────────────────────────────────────────────────
   const compartirPDF = async () => {
+    if (generando) return; // evita doble-tap mientras genera
     if (personal.length === 0) {
       Alert.alert('Sin personal', 'No hay trabajadores activos para generar la factura.');
       return;
@@ -194,7 +198,7 @@ export default function FacturacionScreen() {
         UTI: 'com.adobe.pdf',
       });
     } catch (e) {
-      Alert.alert('Error', 'No se pudo generar el PDF: ' + e.message);
+      mostrarError(e, 'No se pudo generar el PDF');
     } finally {
       setGenerando(false);
     }
