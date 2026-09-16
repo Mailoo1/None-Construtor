@@ -1,10 +1,4 @@
-// Este archivo reemplaza (o complementa) tu app.json existente.
-// Si ya tienes un app.json con configuración de nombre/ícono/splash,
-// copia ese contenido dentro de module.exports de aquí abajo (bajo la
-// misma estructura), o renombra este archivo y fusiona ambos — Expo
-// solo permite uno de los dos activo a la vez.
-//
-// Requiere el paquete "dotenv": npm install dotenv --save-dev
+
 require('dotenv').config();
 
 module.exports = {
