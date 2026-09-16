@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, TextInput, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
 import { auth, db } from '../config/firebase';
 import { subirImagen } from '../config/cloudinary';
@@ -22,7 +22,7 @@ export default function PerfilScreen({ navigation }) {
 
   const cargarUsuario = async () => {
     try {
-      const uid  = auth.currentUser?.uid;
+      const uid = auth.currentUser?.uid;
       if (!uid) return;
       const snap = await getDoc(doc(db, 'usuarios', uid));
       if (snap.exists()) {
@@ -30,7 +30,7 @@ export default function PerfilScreen({ navigation }) {
         setUsuario(data);
         setNombre(data.nombre   ?? '');
         setTelefono(data.telefono ?? '');
-        setCargo(data.cargo     ?? '');
+        setCargo(data.cargo    ?? '');
       }
     } catch (e) { mostrarError(e, 'No se pudo cargar tu perfil'); }
   };
@@ -40,12 +40,18 @@ export default function PerfilScreen({ navigation }) {
     try {
       setLoading(true);
       const uid = auth.currentUser?.uid;
-      await updateDoc(doc(db, 'usuarios', uid), { nombre, telefono, cargo });
+      
+      // Guardado seguro con setDoc y merge: true
+      await setDoc(doc(db, 'usuarios', uid), { nombre, telefono, cargo }, { merge: true });
+      
       setUsuario(prev => ({ ...prev, nombre, telefono, cargo }));
       setEditando(false);
       Alert.alert('✅ Guardado', 'Perfil actualizado correctamente.');
-    } catch (e) { mostrarError(e, 'No se pudo guardar el perfil'); }
-    finally { setLoading(false); }
+    } catch (e) { 
+      mostrarError(e, 'No se pudo guardar el perfil'); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const seleccionarFoto = async () => {
@@ -56,22 +62,28 @@ export default function PerfilScreen({ navigation }) {
         Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.');
         return;
       }
+
       const resultado = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.7,
       });
+
       if (!resultado.canceled) {
         setSubiendoFoto(true);
         const url = await subirImagen(resultado.assets[0].uri);
         const uid = auth.currentUser?.uid;
-        await updateDoc(doc(db, 'usuarios', uid), { fotoPerfil: url });
+
+        await setDoc(doc(db, 'usuarios', uid), { fotoPerfil: url }, { merge: true });
+
         setUsuario(prev => ({ ...prev, fotoPerfil: url }));
         Alert.alert('✅ Foto actualizada', 'Tu foto de perfil fue actualizada.');
       }
-    } catch (e) { mostrarError(e, 'No se pudo actualizar la foto'); }
-    finally { setSubiendoFoto(false); }
+    } catch (e) {
+      mostrarError(e, 'No se pudo actualizar la foto');
+    } finally {
+      setSubiendoFoto(false);
+    }
   };
 
   const tomarFoto = async () => {
@@ -91,12 +103,18 @@ export default function PerfilScreen({ navigation }) {
         setSubiendoFoto(true);
         const url = await subirImagen(resultado.assets[0].uri);
         const uid = auth.currentUser?.uid;
-        await updateDoc(doc(db, 'usuarios', uid), { fotoPerfil: url });
+
+        // Corregido: setDoc con merge para crear o actualizar el documento
+        await setDoc(doc(db, 'usuarios', uid), { fotoPerfil: url }, { merge: true });
+
         setUsuario(prev => ({ ...prev, fotoPerfil: url }));
         Alert.alert('✅ Foto actualizada', 'Tu foto de perfil fue actualizada.');
       }
-    } catch (e) { mostrarError(e, 'No se pudo actualizar la foto'); }
-    finally { setSubiendoFoto(false); }
+    } catch (e) { 
+      mostrarError(e, 'No se pudo actualizar la foto'); 
+    } finally { 
+      setSubiendoFoto(false); 
+    }
   };
 
   const opcionesFoto = () => {
